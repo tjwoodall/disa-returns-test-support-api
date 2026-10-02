@@ -1,0 +1,354 @@
+openapi: 3.0.3
+info:
+  version: 1.0.0
+  title: ISA Returns Test Support
+  description: |
+    # Overview
+
+    The ISA Returns Test Support API simulates specific behaviours of the live ISA Returns API service to support the integration testing in the sandbox environment.
+
+    Use this API to configure test scenarios for the ISA Returns API, including:
+
+    - initiation of test reconciliation reports
+    - temporary override of the reporting window
+
+
+    # Integration requirements
+
+    The integration requirements are as follows:
+
+    - REST API using JSON over HTTPS
+    - authentication uses the OAuth 2.0 authorization code grant
+    - all API calls require an HMRC-assigned unique identifier (Z-Reference) for each approved ISA manager
+
+    # Support
+
+    Before contacting us, find out if there is planned API downtime or a technical issue by checking 
+    [HMRC API Platform Status](https://api-platform-status.production.tax.service.gov.uk/).
+
+    For support with onboarding, the API access, or the 
+    [HMRC Developer sandbox](https://developer.service.hmrc.gov.uk/api-documentation/docs/testing) 
+    queries, submit your request using the 
+    [online support form](https://developer.service.hmrc.gov.uk/devhub-support/start) 
+    or email your queries to [SDSTeam@hmrc.gov.uk](mailto:SDSTeam@hmrc.gov.uk).
+
+    When submitting a request, users should provide details of any available error information to help with the 
+    troubleshooting and resolution of the issue.
+servers:
+  - url: https://test-api.service.hmrc.gov.uk/test/obligations/declaration/isa/return
+    description: Sandbox
+  - url: https://api.service.hmrc.gov.uk/test/obligations/declaration/isa/return
+    description: Production
+tags:
+  - name: Test reconciliation
+    description: |
+      Generate test reconciliation reports for the ISA Returns API to support integration testing in the sandbox environment.
+  - name: Reporting window
+    description: Configure a temporary reporting window for the authenticated Z-Reference.
+paths:
+  /monthly/{zReference}/reporting-window-override:
+    put:
+      summary: Override the reporting window
+      description: |
+        Configure a reporting window for the authenticated Z-Reference. The override lasts for one hour and replaces 
+        any existing override for that Z-Reference.
+
+        This operation does not change the system clock. When the override expires, normal reporting-period validation 
+        resumes.
+      operationId: setReportingWindowOverride
+      tags:
+        - Reporting window
+      security:
+        - userRestricted:
+            - write:isa-returns
+      parameters:
+        - name: zReference
+          in: path
+          description: 'A unique identifier assigned by HMRC to each approved ISA manager. Format: ''Zxxxx''.'
+          required: true
+          schema:
+            pattern: ^[zZ][0-9]{4}$
+            type: string
+            example: Z1234
+        - name: Accept
+          in: header
+          required: true
+          schema: &ref_0
+            type: string
+            enum:
+              - application/vnd.hmrc.1.0+json
+        - name: Authorization
+          in: header
+          required: true
+          schema: &ref_1
+            type: string
+          description: Bearer token for authentication.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: Reporting Window Override
+              type: object
+              required:
+                - startDate
+                - endDate
+              properties:
+                startDate:
+                  type: string
+                  format: date-time
+                  description: Inclusive start of the reporting window. Must not be after endDate.
+                endDate:
+                  type: string
+                  format: date-time
+                  description: Inclusive end of the reporting window.
+            example:
+              startDate: '2026-08-13T00:00:00Z'
+              endDate: '2026-08-31T23:59:59Z'
+      responses:
+        '204':
+          description: Reporting-window override created or updated.
+        '400':
+          description: The request contains malformed JSON, invalid timestamps, an invalid Z reference, or a start date after the end date.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - title: Bad Request (General Issue)
+                    type: object
+                    properties: &ref_2
+                      code:
+                        title: Validation Failure Code
+                        type: string
+                        description: Code indicating the type of error.
+                        enum:
+                          - INVALID_Z_REFERENCE
+                          - MALFORMED_JSON
+                          - EMPTY_PAYLOAD
+                          - ISSUE_LIMIT_EXCEEDED
+                      message:
+                        title: Detailed Message
+                        type: string
+                        description: Message describing the details of the validation error.
+                    example: &ref_3
+                      code: EMPTY_PAYLOAD
+                      message: The payload is empty. Please ensure the request body contains a valid JSON payload before resubmitting.
+                  - title: Bad Request (Field Specific)
+                    type: object
+                    properties: &ref_4
+                      code:
+                        title: Validation Failure
+                        type: string
+                        description: Code indicating the type of error.
+                        enum:
+                          - VALIDATION_FAILURE
+                      message:
+                        title: Message
+                        type: string
+                        description: Human-readable message outlining the error.
+                        example: Bad request
+                      errors:
+                        title: Errors
+                        type: array
+                        description: Array of errors outlining issues found in the request body.
+                        items:
+                          anyOf:
+                            - title: Bad Request Item
+                              type: object
+                              properties:
+                                code:
+                                  title: Validation Failure
+                                  type: string
+                                  description: Code indicating the type of error.
+                                  enum:
+                                    - MISSING_FIELD
+                                    - VALIDATION_ERROR
+                                message:
+                                  title: Message
+                                  type: string
+                                  description: Human-readable message outlining the error.
+                                  example: This field is required
+                                path:
+                                  title: Path
+                                  type: string
+                                  description: JSON pointer path to the field that failed validation.
+                                  example: /oversubscribed
+                    example: &ref_5
+                      code: VALIDATION_FAILURE
+                      message: Bad request
+                      errors:
+                        - code: MISSING_FIELD
+                          message: This field is required
+                          path: /oversubscribed
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - UNAUTHORIZED
+                  message:
+                    type: string
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    enum:
+                      - INTERNAL_SERVER_ERROR
+                  message:
+                    type: string
+                    example: There has been an issue processing your request
+  /monthly/{zReference}/reconciliation:
+    post:
+      summary: Generate test reconciliation report
+      description: |
+        Use the ‘Generate test reconciliation report’ endpoint to trigger the generation of a test reconciliation report 
+        for the ISA Returns API.
+
+        The API request allows you to specify the number of occurrences for each of the following supported error types:
+
+        - oversubscriptions
+        - trace and match failures
+        - eligibility failures
+          
+        Depending on the notification process selected, you will either be notified via 
+        [Push Pull Notifications Service (PPNS)](https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/push-pull-notifications-api/1.0) 
+        using the callback URL configured while subscribing to the ISA Returns API or you can query the PPNS API directly 
+        using the box ID. The reconciliation report shows the rejected records, including any error messages where 
+        applicable. Your application can then use the relevant ISA Returns API endpoint to retrieve and process the 
+        generated results.
+
+        This allows you to test the notification flow and retrieval of the reconciliation report before integrating with 
+        the live service.
+
+        Note: Each sample reconciliation report has an upper threshold of 2000 simulated errors per report per 
+        Z-Reference. Attempts to exceed this limit will result in an error.  
+      operationId: generateTestReconciliationReport
+      tags:
+        - Test reconciliation
+      security:
+        - userRestricted:
+            - write:isa-returns
+      parameters:
+        - name: zReference
+          in: path
+          description: |
+            A unique identifier assigned by HMRC to each approved ISA manager. Format: 'Zxxxx'.
+          required: true
+          style: simple
+          explode: false
+          schema:
+            pattern: ^[z|Z][0-9]{4}$
+            type: string
+            example: Z1234
+        - name: Accept
+          in: header
+          required: true
+          schema: *ref_0
+        - name: Authorization
+          in: header
+          required: true
+          schema: *ref_1
+          description: Bearer token for authentication.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              title: Report Description (Simple)
+              type: object
+              required:
+                - oversubscribed
+                - traceAndMatch
+                - failedEligibility
+              properties:
+                oversubscribed:
+                  type: number
+                  description: Number of simulated oversubscription errors to include in the callback.
+                  pattern: $\d^
+                traceAndMatch:
+                  type: number
+                  description: Number of simulated trace and match errors to include in the callback.
+                  pattern: $\d^
+                failedEligibility:
+                  type: number
+                  description: Number of simulated eligibility errors to include in the callback.
+                  pattern: $\d^
+      responses:
+        '204':
+          description: Submission accepted. No content returned.
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - title: Bad Request (General Issue)
+                    type: object
+                    properties: *ref_2
+                    example: *ref_3
+                  - title: Bad Request (Field Specific)
+                    type: object
+                    properties: *ref_4
+                    example: *ref_5
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    title: Error Code Type
+                    type: string
+                    description: Error Code
+                    enum:
+                      - UNAUTHORIZED
+                  message:
+                    type: string
+                    example: Unauthorized
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    title: Error Code Type
+                    type: string
+                    description: Error Code
+                    enum:
+                      - INTERNAL_SERVER_ERROR
+                  message:
+                    type: string
+                    example: There has been an issue processing your request
+components:
+  securitySchemes:
+    userRestricted:
+      type: oauth2
+      description: |
+        HMRC uses OAuth 2.0 Bearer tokens for authentication. Include the token in the AUTHORIZATION header of user-restricted API requests.
+        See https://developer.service.hmrc.gov.uk/api-documentation/docs/authorisation/user-restricted-endpoints for details.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://api.service.hmrc.gov.uk/oauth/authorize
+          tokenUrl: https://api.service.hmrc.gov.uk/oauth/token
+          refreshUrl: https://api.service.hmrc.gov.uk/oauth/refresh
+          scopes:
+            write:isa-returns: submit data to the api
+  schemas:
+    badSubmissionComplex:
+      title: Bad Request (Field Specific)
+      type: object
+      properties: *ref_4
+      example: *ref_5
