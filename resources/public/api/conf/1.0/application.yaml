@@ -65,7 +65,7 @@ paths:
       tags:
         - Reporting window
       security:
-        - userRestricted:
+        - User-Restricted:
             - write:isa-returns
       parameters:
         - name: zReference
@@ -141,7 +141,7 @@ paths:
       tags:
         - Test reconciliation
       security:
-        - userRestricted:
+        - User-Restricted:
             - write:isa-returns
       parameters:
         - name: zReference
@@ -208,7 +208,7 @@ paths:
                     example: "There has been an issue processing your request"
 components:
   securitySchemes:
-    userRestricted:
+    User-Restricted:
       type: oauth2
       description: |
         HMRC uses OAuth 2.0 Bearer tokens for authentication. Include the token in the AUTHORIZATION header of user-restricted API requests.
